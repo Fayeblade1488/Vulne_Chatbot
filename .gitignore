@@ -1,0 +1,32 @@
+# Environment and credentials
+.env
+.env.*
+!.env.example
+.oci/
+oci_config
+~/.oci/config
+
+# SSL certificates and keys
+*.key
+*.pem
+*.csr
+*.cnf
+cert.*
+key.*
+
+# Application data
+config.json
+customerai.db
+logs/
+__pycache__/
+*.pyc
+*.log
+
+# Development
+.vscode/
+.idea/
+.DS_Store
+
+# Test data
+tester_server.py
+

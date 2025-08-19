@@ -1,0 +1,30 @@
+# Core web framework
+Flask==3.0.0
+Werkzeug==3.0.1
+
+# HTTP requests for Ollama communication
+requests==2.31.0
+urllib3==2.1.0
+
+# Oracle Cloud Infrastructure SDK (for OCI GenAI models)
+oci==2.126.4
+
+# Environment variable management
+python-dotenv==1.0.0
+
+# Additional security and utility packages
+cryptography==41.0.8
+PyJWT==2.8.0
+
+# Development and debugging
+python-dateutil==2.8.2
+
+
+# Enhanced JSON handling
+ujson==5.9.0
+
+# Better logging and monitoring
+colorama==0.4.6
+
+# For enhanced security testing
+Pillow==10.1.0
