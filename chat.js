@@ -17,11 +17,48 @@ document.addEventListener('DOMContentLoaded', function() {
     loadAvailableModels();
     updateVulnerabilityStats();
     updateModelDisplay();
+    loadGuardrailsStatus();
 });
 
 /**
  * Set up all event listeners
  */
+
+function toggleGuardrails() {
+    const select = document.getElementById('guardrailsToggle');
+    const mode = select.value;
+
+    fetch('/api/guardrails/toggle', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ mode: mode })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('guardrailsStatus').textContent =
+                `Status: ${data.guardrails_status}`;
+            addMessage(`Guardrails ${data.guardrails_status}: ${mode}`, 'system');
+        }
+    })
+    .catch(error => {
+        console.error('Guardrails toggle error:', error);
+    });
+}
+
+// Load current guardrails status on page load
+function loadGuardrailsStatus() {
+    fetch('/api/guardrails/status')
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('guardrailsToggle').value = data.mode;
+        document.getElementById('guardrailsStatus').textContent =
+            `Status: ${data.active ? 'enabled' : 'disabled'}`;
+    });
+}
+
 function initializeEventListeners() {
     const sendBtn = document.getElementById('sendBtn');
     if (sendBtn) {
@@ -58,9 +95,22 @@ function initializeEventListeners() {
         });
     });
 
+    // FIXED: Better event handling for vulnerability templates
     const vulnItems = document.querySelectorAll('.vuln.clickable');
     vulnItems.forEach(item => {
-        item.addEventListener('click', function() {
+        item.addEventListener('click', function(event) {
+            // Check if the click was on a details element or its children
+            const clickedElement = event.target;
+            const detailsElement = clickedElement.closest('details');
+            const summaryElement = clickedElement.closest('summary');
+
+            // If clicking on summary or anywhere inside details, let the details handle it
+            if (summaryElement || (detailsElement && detailsElement.contains(clickedElement))) {
+                // Don't prevent default - let details toggle work
+                return;
+            }
+
+            // If clicking outside details area, send the message
             const message = this.getAttribute('data-message');
             if (message) {
                 sendQuickMessage(message);
