@@ -81,14 +81,6 @@ AVAILABLE_MODELS = {
             'name': 'Cohere Command-r-08-2024',
             'description': 'v1.7'
         },
-        'cohere.command-r-16k': {
-            'name': 'Cohere Command-r-16k',
-            'description': 'v1.6'
-        },
-        'cohere.command-r-plus': {
-            'name': 'Cohere Command-r Plus',
-            'description': 'v1.6'
-        },
         'cohere.command-r-plus-08-2024': {
             'name': 'Cohere Command-r Plus 08-2024',
             'description': 'v1.6'
@@ -138,54 +130,6 @@ AVAILABLE_MODELS = {
         'openai.gpt-4o-mini-2024-07-18': {
             'name': 'OpenAI GPT-4o Mini (2024-07-18)',
             'description': 'Snapshot'
-        },
-        'openai.gpt-4o-mini-search-preview': {
-            'name': 'OpenAI GPT-4o Mini (Search Preview)',
-            'description': 'Preview for RAG/search'
-        },
-        'openai.gpt-4o-mini-search-preview-2025-03-11': {
-            'name': 'OpenAI GPT-4o Mini (Search Preview 2025-03-11)',
-            'description': 'Search-tuned snapshot'
-        },
-        'openai.gpt-4o-search-preview': {
-            'name': 'OpenAI GPT-4o (Search Preview)',
-            'description': 'RAG/search optimized'
-        },
-        'openai.gpt-4o-search-preview-2025-03-11': {
-            'name': 'OpenAI GPT-4o (Search Preview 2025-03-11)',
-            'description': 'Snapshot'
-        },
-        'openai.o1': {
-            'name': 'OpenAI O1',
-            'description': 'Custom model'
-        },
-        'openai.o1-2024-12-17': {
-            'name': 'OpenAI O1 (2024-12-17)',
-            'description': 'Release'
-        },
-        'openai.o3': {
-            'name': 'OpenAI O3',
-            'description': 'Next-gen model'
-        },
-        'openai.o3-2025-04-16': {
-            'name': 'OpenAI O3 (2025-04-16)',
-            'description': 'Release'
-        },
-        'openai.o3-mini': {
-            'name': 'OpenAI O3 Mini',
-            'description': 'Small version of O3'
-        },
-        'openai.o3-mini-2025-01-31': {
-            'name': 'OpenAI O3 Mini (2025-01-31)',
-            'description': 'Snapshot'
-        },
-        'openai.o4-mini': {
-            'name': 'OpenAI O4 Mini',
-            'description': 'Early preview of O4'
-        },
-        'openai.o4-mini-2025-04-16': {
-            'name': 'OpenAI O4 Mini (2025-04-16)',
-            'description': 'Release snapshot'
         },
 
         # --- xAI Models ---
@@ -371,6 +315,28 @@ def parse_arguments():
                        default=None, help='Activate guardrails mode')
     return parser.parse_args()
 
+
+# Global state file for guardrails persistence
+GUARDRAILS_STATE_FILE = 'guardrails_state.json'
+
+def save_guardrails_state():
+    """Save current guardrails state to file"""
+    try:
+        with open(GUARDRAILS_STATE_FILE, 'w') as f:
+            json.dump({'mode': GUARDRAILS_MODE}, f)
+    except Exception as e:
+        logger.warning(f"Could not save guardrails state: {e}")
+
+def load_guardrails_state():
+    """Load guardrails state from file"""
+    try:
+        if os.path.exists(GUARDRAILS_STATE_FILE):
+            with open(GUARDRAILS_STATE_FILE, 'r') as f:
+                data = json.load(f)
+                return data.get('mode', 'none')
+    except Exception as e:
+        logger.warning(f"Could not load guardrails state: {e}")
+    return 'none'
 
 #NEMO initialization
 def init_nemo_guardrails():
@@ -700,12 +666,13 @@ def toggle_guardrails():
     global GUARDRAILS_MODE, nemo_rails
 
     data = request.get_json()
-    mode = data.get('mode', 'none')  # none, nemo, guardrails-ai
+    mode = data.get('mode', 'none')
 
     if mode not in ['none', 'nemo', 'guardrails-ai']:
         return jsonify({'error': 'Invalid guardrails mode'}), 400
 
     GUARDRAILS_MODE = mode
+    save_guardrails_state()  # Add this line
 
     if mode == 'nemo':
         nemo_rails = init_nemo_guardrails()
@@ -898,34 +865,27 @@ def call_oci_model(model_name, message):
                 compartment_id=compartment_id
             )
         else:
-            # Handle different model types with proper message format
-            if model_name.startswith(('openai.o1', 'openai.o3', 'openai.o4')):
-                # O-series models use simple format
-                messages = [
-                    {"role": "user", "content": f"{get_vulnerable_system_prompt()}\n\nUser: {message}"}
-                ]
-            else:
-                # Standard format for GPT-4, Llama, Grok models
-                messages = [
-                    {
-                        "role": "USER",
-                        "content": [
-                            {
-                                "type": "TEXT",
-                                "text": get_vulnerable_system_prompt()
-                            }
-                        ]
-                    },
-                    {
-                        "role": "USER",
-                        "content": [
-                            {
-                                "type": "TEXT",
-                                "text": message
-                            }
-                        ]
-                    }
-                ]
+            # For OpenAI and other non-Cohere models, use the exact format from check_models.py
+            messages = [
+                {
+                    "role": "USER",
+                    "content": [
+                        {
+                            "type": "TEXT",
+                            "text": get_vulnerable_system_prompt()
+                        }
+                    ]
+                },
+                {
+                    "role": "USER",
+                    "content": [
+                        {
+                            "type": "TEXT",
+                            "text": message
+                        }
+                    ]
+                }
+            ]
 
             chat_req = oci.generative_ai_inference.models.GenericChatRequest()
             chat_req.messages = messages
@@ -934,6 +894,11 @@ def call_oci_model(model_name, message):
             chat_req.api_format = "GENERIC"
             chat_req.is_stream = False
             chat_req.num_generations = 1
+
+            # Add reasoning effort for reasoning models
+            mn = model_name.lower()
+            if mn.startswith(("openai.o1", "openai.o3", "openai.o4", "openai.gpt-4.1")):
+                chat_req.reasoning_effort = "LOW"
 
             detail = oci.generative_ai_inference.models.ChatDetails(
                 serving_mode=oci.generative_ai_inference.models.OnDemandServingMode(
@@ -949,48 +914,88 @@ def call_oci_model(model_name, message):
 
         # Debug: Print the actual response structure
         print(f"DEBUG: Response type: {type(resp.data)}")
-        print(f"DEBUG: Response data attributes: {dir(resp.data)}")
 
-        # Handle different response formats
+        # Extract response text based on model type
         response_text = ""
 
         if model_name.startswith('cohere'):
-            # Cohere format - check multiple possible attributes
+            # Cohere format
             if hasattr(resp.data, 'chat_response') and hasattr(resp.data.chat_response, 'text'):
                 response_text = resp.data.chat_response.text
-            elif hasattr(resp.data, 'text'):
-                response_text = resp.data.text
             else:
-                # Try to find text in any nested structure
                 response_text = extract_text_from_response(resp.data)
         else:
             # Generic format (OpenAI, Meta, xAI models)
             if hasattr(resp.data, 'chat_response'):
                 chat_response = resp.data.chat_response
+                print(f"DEBUG: Chat response type: {type(chat_response)}")
+                print(f"DEBUG: Chat response dir: {[attr for attr in dir(chat_response) if not attr.startswith('_')]}")
+
+                # Try multiple extraction methods
                 if hasattr(chat_response, 'choices') and chat_response.choices:
-                    # Standard OpenAI format
-                    if hasattr(chat_response.choices[0], 'message'):
-                        response_text = chat_response.choices[0].message.content
-                    elif hasattr(chat_response.choices[0], 'text'):
-                        response_text = chat_response.choices[0].text
-                elif hasattr(chat_response, 'api_format') and hasattr(chat_response, 'text'):
-                    response_text = chat_response.text
-                else:
-                    # Try to extract from any available field
+                    print(f"DEBUG: Found choices: {len(chat_response.choices)}")
+                    choice = chat_response.choices[0]
+                    print(f"DEBUG: Choice type: {type(choice)}")
+                    print(f"DEBUG: Choice dir: {[attr for attr in dir(choice) if not attr.startswith('_')]}")
+
+                    if hasattr(choice, 'message'):
+                        message_obj = choice.message
+                        print(f"DEBUG: Message type: {type(message_obj)}")
+                        print(f"DEBUG: Message dir: {[attr for attr in dir(message_obj) if not attr.startswith('_')]}")
+
+                        if hasattr(message_obj, 'content'):
+                            content = message_obj.content
+                            print(f"DEBUG: Content type: {type(content)}")
+                            print(f"DEBUG: Content value: {content}")
+
+                            if isinstance(content, list) and content:
+                                # Handle list format
+                                for item in content:
+                                    print(f"DEBUG: Content item: {item}")
+                                    if isinstance(item, dict):
+                                        if item.get('type') == 'text' and 'text' in item:
+                                            response_text = item['text']
+                                            break
+                                        elif 'text' in item:
+                                            response_text = item['text']
+                                            break
+                                    elif hasattr(item, 'text'):
+                                        response_text = str(item.text)
+                                        break
+                            elif isinstance(content, str):
+                                response_text = content
+                            elif content is not None:
+                                response_text = str(content)
+                        elif hasattr(message_obj, 'text'):
+                            response_text = str(message_obj.text)
+                    elif hasattr(choice, 'text'):
+                        response_text = str(choice.text)
+
+                elif hasattr(chat_response, 'text'):
+                    text_content = chat_response.text
+                    if isinstance(text_content, list) and text_content:
+                        for item in text_content:
+                            if isinstance(item, dict) and item.get('type') == 'text':
+                                response_text = item.get('text', '')
+                                break
+                    else:
+                        response_text = str(text_content) if text_content else ""
+
+                # If still no response, try generic extraction
+                if not response_text:
                     response_text = extract_text_from_response(chat_response)
-            elif hasattr(resp.data, 'choices') and resp.data.choices:
-                # Direct choices format
-                if hasattr(resp.data.choices[0], 'message'):
-                    response_text = resp.data.choices[0].message.content
-                elif hasattr(resp.data.choices[0], 'text'):
-                    response_text = resp.data.choices[0].text
             else:
-                # Fallback - try to extract text from any available field
                 response_text = extract_text_from_response(resp.data)
 
+        # Clean up the response
+        if not isinstance(response_text, str):
+            response_text = str(response_text) if response_text else ""
+
+        response_text = response_text.strip()
+
         if not response_text:
-            print("DEBUG: Could not extract response text, using fallback")
-            response_text = "Unable to parse model response. Please check the model configuration."
+            print("DEBUG: No response text extracted, using fallback")
+            response_text = "Model returned empty response"
 
         intent = classify_intent(message)
         print(f"DEBUG: Classified intent: {intent}")
@@ -1002,29 +1007,61 @@ def call_oci_model(model_name, message):
     except Exception as e:
         print(f"DEBUG: OCI model error: {e}")
         print(f"DEBUG: Error type: {type(e)}")
+        import traceback
+        print(f"DEBUG: Full traceback: {traceback.format_exc()}")
         logger.error(f"OCI model error: {e}")
         print("-----------------------END-------------------------")
         return "Model unavailable. No response generated.", classify_intent(message)
 
+
 def extract_text_from_response(response_obj):
     """
-    Recursively search for text content in the response object
+    Recursively search for text content in the response object with better debugging
     """
-    if hasattr(response_obj, 'text'):
-        return response_obj.text
-    elif hasattr(response_obj, 'content'):
-        return response_obj.content
-    elif hasattr(response_obj, 'message') and hasattr(response_obj.message, 'content'):
-        return response_obj.message.content
-    elif hasattr(response_obj, '__dict__'):
-        # Search through all attributes
-        for attr_name, attr_value in response_obj.__dict__.items():
-            if isinstance(attr_value, str) and len(attr_value) > 10:  # Likely response text
+    print(f"DEBUG: extract_text_from_response called with type: {type(response_obj)}")
+
+    if response_obj is None:
+        return ""
+
+    # Try common attributes
+    for attr_name in ['text', 'content', 'message']:
+        if hasattr(response_obj, attr_name):
+            attr_value = getattr(response_obj, attr_name)
+            print(f"DEBUG: Found {attr_name}: {type(attr_value)} = {str(attr_value)[:100]}...")
+
+            if isinstance(attr_value, str) and attr_value.strip():
                 return attr_value
-            elif hasattr(attr_value, '__dict__'):  # Nested object
-                nested_result = extract_text_from_response(attr_value)
-                if nested_result:
-                    return nested_result
+            elif isinstance(attr_value, list) and attr_value:
+                # Handle list of content objects
+                for item in attr_value:
+                    if isinstance(item, dict):
+                        if item.get('type') == 'text' and 'text' in item:
+                            return item['text']
+                        elif 'text' in item:
+                            return item['text']
+                    elif hasattr(item, 'text'):
+                        text_val = getattr(item, 'text')
+                        if isinstance(text_val, str) and text_val.strip():
+                            return text_val
+            elif hasattr(attr_value, 'content'):
+                # Recursive check
+                nested_content = getattr(attr_value, 'content')
+                if isinstance(nested_content, str) and nested_content.strip():
+                    return nested_content
+
+    # Try to access the actual object attributes dynamically
+    try:
+        obj_dict = response_obj.__dict__ if hasattr(response_obj, '__dict__') else {}
+        print(f"DEBUG: Object dict keys: {list(obj_dict.keys())}")
+
+        for key, value in obj_dict.items():
+            if key.startswith('_'):
+                continue
+            if isinstance(value, str) and value.strip() and len(value) > 10:
+                print(f"DEBUG: Found potential response in {key}: {value[:50]}...")
+                return value
+    except:
+        pass
 
     return ""
 
@@ -1201,13 +1238,19 @@ if __name__ == '__main__':
     # Parse CLI arguments
     args = parse_arguments()
 
+    #Load saved guardrails state first
+    saved_mode = load_guardrails_state()
+
     # Set guardrails mode from CLI or environment
     if args.guardrails:
         GUARDRAILS_MODE = args.guardrails
     else:
-        GUARDRAILS_MODE = os.getenv("GUARDRAILS_MODE", "none")
+        GUARDRAILS_MODE = os.getenv("GUARDRAILS_MODE", saved_mode)
 
     print(f"Guardrails mode: {GUARDRAILS_MODE}")
+
+    # Save the current state
+    save_guardrails_state()
 
     init_db()
     create_config_files()

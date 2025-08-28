@@ -1,0 +1,89 @@
+from guardrails import Guard
+from guardrails.hub import (
+    LlmRagEvaluator,
+    SaliencyCheck,
+    ResponseEvaluator,
+    UnusualPrompt,
+    ResponsivenessCheck,
+    PolitenessCheck,
+    RestrictToTopic,
+    ProvenanceLLM,
+    QARelevanceLLMEval,
+    LLMCritic,
+    ToxicLanguage,
+    GuardrailsPII,
+    GroundedAIHallucination,
+    DetectPII
+)
+
+guard = Guard().use_many(
+    LlmRagEvaluator(
+        eval_llm_prompt_generator=[eval_llm_prompt_generator],
+        llm_evaluator_fail_response=[llm_evaluator_fail_response],
+        llm_evaluator_pass_response=[llm_evaluator_pass_response],
+        llm_callable=[llm_callable],
+        on_fail=noop
+    ),
+    SaliencyCheck(
+        docs-dir=[docs-dir],
+        llm_callable=gpt-3.5-turbo,
+        threshold=0.25
+    ),
+    ResponseEvaluator(
+        llm_callable=gpt-3.5-turbo
+    ),
+    UnusualPrompt(),
+    ResponsivenessCheck(
+        prompt=[prompt],
+        llm_callable=gpt-3.5-turbo
+    ),
+    PolitenessCheck(
+        llm_callable=gpt-3.5-turbo
+    ),
+    RestrictToTopic(
+        valid_topics=[valid_topics],
+        invalid_topics=[invalid_topics],
+        device=-1,
+        model=facebook/bart-large-mnli,
+        llm_callable=[llm_callable],
+        disable_classifier=[disable_classifier],
+        disable_llm=[disable_llm],
+        classifier_api_endpoint=[classifier_api_endpoint],
+        zero_shot_threshold=0.5,
+        llm_threshold=3
+    ),
+    ProvenanceLLM(
+        validation_method=sentence,
+        llm_callable=gpt-3.5-turbo,
+        top_k=3,
+        max_tokens=2,
+        on_fail=noop
+    ),
+    QARelevanceLLMEval(
+        llm_callable=gpt-3.5-turbo,
+        on_fail=noop
+    ),
+    LLMCritic(
+        metrics=[metrics],
+        max_score=5,
+        llm_callable=gpt-3.5-turbo
+    ),
+    ToxicLanguage(
+        validation_method=sentence,
+        threshold=0.5
+    ),
+    GuardrailsPII(
+        entities=[entities],
+        model_name=urchade/gliner_small-v2.1
+    ),
+    GroundedAIHallucination(),
+    DetectPII(
+        pii_entities=[pii_entities]
+    )
+)
+
+guard.validate("some text")
+guard(
+    llm_api=openai.chat.completions.create,
+    prompt="some prompt"
+)
