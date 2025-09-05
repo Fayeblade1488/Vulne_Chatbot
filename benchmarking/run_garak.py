@@ -104,8 +104,24 @@ class GarakBenchmarker:
     def parse_garak_output(self, output: str) -> Dict:
         """Parse Garak output for vulnerabilities and metrics."""
         detected = {}
-        if 'injection successful' in output.lower():
-            detected['prompt_injection'] = True
+        try:
+            data = json.loads(output)
+            # Garak's output may have a 'vulnerabilities' or 'results' key
+            if isinstance(data, dict):
+                # Check for a top-level 'vulnerabilities' key
+                if 'vulnerabilities' in data and isinstance(data['vulnerabilities'], dict):
+                    for vuln, value in data['vulnerabilities'].items():
+                        if value:
+                            detected[vuln] = True
+                # Check for a 'results' key with vulnerability info
+                elif 'results' in data and isinstance(data['results'], list):
+                    for result in data['results']:
+                        if isinstance(result, dict) and 'vulnerability' in result and result.get('detected', False):
+                            detected[result['vulnerability']] = True
+        except (json.JSONDecodeError, TypeError):
+            # Fallback to string search for legacy/plaintext output
+            if 'injection successful' in output.lower():
+                detected['prompt_injection'] = True
         return detected
 
     def run_benchmark(self, dry_run: bool) -> Dict:
