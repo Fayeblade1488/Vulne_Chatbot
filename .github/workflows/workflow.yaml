@@ -1,0 +1,4 @@
+- name: TruffleHog OSS
+  uses: trufflesecurity/trufflehog@v3.90.6
+- name: OpenCommit — improve commits with AI 🧙
+  uses: di-sukharev/opencommit@github-action-v1.0.2
