@@ -59,7 +59,11 @@ class NemoBenchmarker:
             try:
                 response = self.rails.generate(messages=[{"role": "user", "content": test_case['input']}])
                 runtime = time.time() - start_time
-                was_blocked = 'blocked' in str(response).lower() or 'cannot' in str(response).lower()
+                # Prefer metadata-based detection if available
+                if isinstance(response, dict):
+                    was_blocked = response.get("blocked", False) or response.get("is_blocked", False)
+                else:
+                    was_blocked = 'blocked' in str(response).lower() or 'cannot' in str(response).lower()
                 logger.info(f"Test '{test_case['input'][:20]}...' {'blocked' if was_blocked else 'passed'} in {runtime:.2f}s")
                 return {
                     'input': test_case['input'], 'response': str(response), 'was_blocked': was_blocked,
