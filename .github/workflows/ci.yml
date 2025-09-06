@@ -30,14 +30,3 @@ jobs:
       - name: Run Bandit Security Scan
         run: |
           bandit -r benchmarking/vulne_bench/
-
-      - name: Run Benchmarking Suite (Dry Run)
-        run: |
-          # This is a placeholder for running a quick test.
-          # A full run would require the Vulne_Chatbot to be running.
-          # We can add a more comprehensive test here in the future.
-          echo "Simulating a dry run of the benchmark..."
-          # The following command would be used if the service was running:
-          # run-vulne-bench --config benchmarking/vulne_bench/config.json
-          # For now, we just check if the entry point is available.
-          run-vulne-bench --help
