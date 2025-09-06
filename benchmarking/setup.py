@@ -8,7 +8,7 @@ setup(
         'nemoguardrails==0.9.1.1',
         'guardrails-ai',
         'matplotlib==3.8.0',
-        'tqdm==4.66.1',
+        'tqdm==4.66.3',
         'reportlab==4.0.4',
         'pytest==7.4.0',
         'bandit==1.7.5',
