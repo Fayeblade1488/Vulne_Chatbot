@@ -468,10 +468,16 @@ class GarakBenchmarker:
                 'vulnerabilities_found': sum(self.metrics.get('vulnerability_counts', {}).values()),
                 'most_common_vulnerability': max(self.metrics.get('vulnerability_counts', {}).items(), 
                                                key=lambda x: x[1], default=('none', 0))[0],
-                'fastest_probe': min([(r['probe'], r['runtime']) for r in results if r['success']], 
-                                   key=lambda x: x[1], default=('none', 0)),
-                'slowest_probe': max([(r['probe'], r['runtime']) for r in results if r['success']], 
-                                   key=lambda x: x[1], default=('none', 0)),
+                'fastest_probe': (
+                    min([(r['probe'], r['runtime']) for r in results if r['success']], key=lambda x: x[1])
+                    if any(r['success'] for r in results)
+                    else ('none', 0)
+                ),
+                'slowest_probe': (
+                    max([(r['probe'], r['runtime']) for r in results if r['success']], key=lambda x: x[1])
+                    if any(r['success'] for r in results)
+                    else ('none', 0)
+                ),
                 'recommendations': self.generate_recommendations(results)
             }
         }
