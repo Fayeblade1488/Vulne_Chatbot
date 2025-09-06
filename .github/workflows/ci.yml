@@ -1,0 +1,43 @@
+name: Benchmarking CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e benchmarking/
+
+      - name: Run Bandit Security Scan
+        run: |
+          bandit -r benchmarking/vulne_bench/
+
+      - name: Run Benchmarking Suite (Dry Run)
+        run: |
+          # This is a placeholder for running a quick test.
+          # A full run would require the Vulne_Chatbot to be running.
+          # We can add a more comprehensive test here in the future.
+          echo "Simulating a dry run of the benchmark..."
+          # The following command would be used if the service was running:
+          # run-vulne-bench --config benchmarking/vulne_bench/config.json
+          # For now, we just check if the entry point is available.
+          run-vulne-bench --help
