@@ -18,21 +18,32 @@ key.*
 # Application data
 config.json
 customerai.db
+*.db
 errors.json
-logs/
+
+# Python cache and build artifacts
 __pycache__/
 *.pyc
-*.log
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
 
 # Development
 .vscode/
 .idea/
 .DS_Store
+venv/
 
 # Test data
 tester_server.py
 check_models.py
 
-venv/
-__pycache__/
-*.pyc
+# Logs and Reports
+logs/
+*.log
+*.json
+*.png
+master_results_*/
+benchmark_reports_*/

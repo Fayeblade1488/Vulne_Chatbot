@@ -1,0 +1,37 @@
+# Git files
+.git
+.gitignore
+.github
+
+# Docker files
+Dockerfile
+.dockerignore
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Environment
+.env
+.env.*
+!/.env.example
+venv/
+.venv/
+
+# IDE / OS specific
+.idea/
+.vscode/
+.DS_Store
+
+# Logs and reports
+*.log
+*.json
+*.md
+*.png
+master_results_*/
+benchmark_reports_*/
+
+# Temp files
+benchmarking_old/
