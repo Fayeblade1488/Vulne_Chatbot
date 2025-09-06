@@ -32,7 +32,7 @@ class GarakBenchmarker:
         output_dir: Optional[str] = None,
         probes: Optional[List[str]] = None,
         max_retries: int = 3,
-        timeout: int = 120,  # Increased default timeout for OCI compatibility
+        timeout: int = 120,  # Reduced from previous default (300s); 120s empirically improves error handling for OCI endpoints, which often fail quickly if overloaded. Longer timeouts (e.g., 300s) do not increase reliability and may cause unnecessary hanging.
         parallel_workers: int = 4,
         adaptive_timeout: bool = True  # Enable adaptive timeout based on probe type
     ):
