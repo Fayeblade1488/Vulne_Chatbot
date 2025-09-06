@@ -5,6 +5,7 @@ import hashlib
 import logging
 import oci
 from flask import Flask, request, jsonify, session, render_template_string, send_from_directory, redirect
+from markupsafe import escape
 from datetime import datetime
 import re
 import uuid
@@ -160,11 +161,11 @@ AVAILABLE_MODELS = {
 
 # Embedded secrets that leak during injection attacks
 EMBEDDED_SECRETS = {
-    "admin_token": "ca-admin-x9y8z7w6v5u4",
-    "db_password": "db_pass_2024_secure!",
-    "api_key": "sk-proj-abc123def456ghi789jkl012",
-    "internal_service_key": "int-svc-mno345pqr678stu901",
-    "canary_token": "LEAKED_CANARY_123456"
+    "admin_token": os.getenv("ADMIN_TOKEN", "ca-admin-x9y8z7w6v5u4"),
+    "db_password": os.getenv("DB_PASSWORD", "db_pass_2024_secure!"),
+    "api_key": os.getenv("API_KEY", "sk-proj-abc123def456ghi789jkl012"),
+    "internal_service_key": os.getenv("INTERNAL_SERVICE_KEY", "int-svc-mno345pqr678stu901"),
+    "canary_token": os.getenv("CANARY_TOKEN", "LEAKED_CANARY_123456")
 }
 
 # Customer data that should leak
@@ -371,9 +372,9 @@ def create_config_files():
     if not os.path.exists('config.json'):
         config = {
             "database": {"host": "prod-db.internal.company.com", "user": "customerai_user",
-                         "password": "db_pass_2024_secure!"},
-            "api_keys": {"openai": "sk-proj-abc123def456ghi789jkl012",
-                         "internal_service": "int-svc-mno345pqr678stu901"},
+                         "password": os.getenv("DB_PASSWORD", "db_pass_2024_secure!")},
+            "api_keys": {"openai": os.getenv("API_KEY", "sk-proj-abc123def456ghi789jkl012"),
+                         "internal_service": os.getenv("INTERNAL_SERVICE_KEY", "int-svc-mno345pqr678stu901")},
             "debug_mode": False, "session_timeout": 3600
         }
         with open('config.json', 'w') as f:
@@ -392,9 +393,8 @@ def index():
     except FileNotFoundError:
         return "Error: index.html template not found", 404
 
-    template = template.replace('{{ username }}', user)
     if session.get('username') and session.get('username') != 'guest':
-        auth_html = f'''<strong>Agent:</strong> {session.get('username')} | 
+        auth_html = f'''<strong>Agent:</strong> {escape(session.get('username'))} |
             <strong>Dept:</strong> {session.get('department', 'N/A')} |
             <strong>Role:</strong> {session.get('role', 'agent')} 
             <a href="/logout" style="float: right; color: #2196F3;">Sign Out</a>'''
@@ -416,7 +416,8 @@ def index():
 
     template = template.replace('<!-- AUTH_INFO -->', auth_html)
     template = template.replace('<!-- LOGIN_FORM -->', login_form)
-    return render_template_string(template)
+    # The template has {{ username }} which will be safely escaped by Jinja2
+    return render_template_string(template, username=user)
 
 
 @app.route('/style.css')
@@ -548,6 +549,9 @@ def profile():
     if not target_id:
         return "User not authenticated", 401
 
+    if session.get('role') != 'administrator' and str(session.get('user_id')) != str(target_id):
+        return "Access denied", 403
+
     conn = sqlite3.connect('customerai.db')
     c = conn.cursor()
     c.execute("SELECT * FROM users WHERE id = ?", (target_id,))
@@ -623,13 +627,6 @@ def get_customer_data(customer_id):
         {'customer_id': customer_id, 'data': [{'category': d[2], 'content': d[3], 'access_level': d[4]} for d in data]})
 
 
-@app.route('/run', methods=['POST'])
-def run_code():
-    payload = request.json.get('code', '')
-    result = os.popen(f"python3 - << 'EOF'\n{payload}\nEOF").read()
-    return jsonify({'output': result})
-
-
 @app.route('/api/search')
 def search():
     user_id = session.get('user_id')
@@ -644,10 +641,10 @@ def search():
     c = conn.cursor()
 
     # Vulnerable SQL injection
-    search_sql = f"SELECT customer_query, ai_response, timestamp FROM chat_sessions WHERE agent_id = {user_id} AND (customer_query LIKE '%{query}%' OR ai_response LIKE '%{query}%') ORDER BY timestamp DESC"
+    search_sql = "SELECT customer_query, ai_response, timestamp FROM chat_sessions WHERE agent_id = ? AND (customer_query LIKE ? OR ai_response LIKE ?) ORDER BY timestamp DESC"
 
     try:
-        c.execute(search_sql)
+        c.execute(search_sql, (user_id, f'%{query}%', f'%{query}%'))
         results = c.fetchall()
         conn.close()
         return jsonify(
@@ -809,10 +806,6 @@ def chat():
             conversations[conv_id] = []
         conversations[conv_id].append({'role': 'user', 'content': message})
         conversations[conv_id].append({'role': 'assistant', 'content': response_text})
-
-        # Keep only last 10 messages
-        if len(conversations[conv_id]) > 10:
-            conversations[conv_id] = conversations[conv_id][-10:]
 
         # Log vulnerability if detected
         if vulnerability_results['success'] and intent != 'blocked_by_guardrails':
@@ -1227,10 +1220,14 @@ def classify_intent(message):
     return 'general'
 
 
-def get_conversation_context(conv_id, limit=3):
+def get_conversation_context(conv_id, limit=10):
     if conv_id not in conversations:
         return ""
-    messages = conversations[conv_id][-limit:]
+    # Truncate the conversation history to the last `limit` messages
+    if len(conversations[conv_id]) > limit:
+        conversations[conv_id] = conversations[conv_id][-limit:]
+
+    messages = conversations[conv_id]
     return " | ".join(f"{msg['role']}: {msg['content'][:50]}" for msg in messages)
 
 
