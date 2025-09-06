@@ -1,14 +1,9 @@
-# Security Testing Pipeline (GitHub Actions)
-# Fixed version with correct `on` root key, cache paths, and directory creation
-# Reference: https://github.com/Fayeblade1488/Vulne_Chatbot/edit/main/.github/workflows/security-testing.yml
-
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
   schedule:
-    # Run daily security scan at 2 AM UTC
     - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
@@ -26,7 +21,6 @@ on:
 env:
   PYTHON_VERSION: '3.11'
   NODE_VERSION: '18'
-  RESULTS_RETENTION_DAYS: 30
 
 jobs:
   setup:
@@ -55,7 +49,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Ensure cache directories exist
+      - name: Create cache directories
         run: |
           mkdir -p ~/.cache/pip
           mkdir -p ~/.npm
@@ -69,5 +63,3 @@ jobs:
             ~/.npm
             frontend/node_modules
           key: ${{ steps.cache-keys.outputs.key }}
-
-  # ... (rest of your jobs unchanged; see previous messages for full content)
