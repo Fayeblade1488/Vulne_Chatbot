@@ -4,96 +4,108 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import logging
 import argparse
+import sys
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class ReportGenerator:
-    def __init__(self, results_dirs: dict):
+    def __init__(self, results_dirs: dict, output_dir: str = None):
         self.results = {}
         for tool, dir_path in results_dirs.items():
-            if dir_path and os.path.isdir(dir_path):
-                self.results[tool] = self.load_results(dir_path)
-            else:
-                logger.warning(f"Directory not found for {tool}: {dir_path}")
-                self.results[tool] = {}
+            self.results[tool] = self.load_results(dir_path)
 
-        self.output_dir = f"benchmark_reports_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        if output_dir:
+            self.output_dir = output_dir
+        else:
+            self.output_dir = f"benchmark_reports_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         os.makedirs(self.output_dir, exist_ok=True)
 
-    def load_results(self, dir_path: str) -> dict:
-        """Load JSON results from directory."""
-        results_file = next((f for f in os.listdir(dir_path) if f.endswith('_results.json')), None)
+    def load_results(self, dir_path: str) -> Optional[Dict]:
+        """Load JSON results from a directory."""
+        if not dir_path or not os.path.isdir(dir_path):
+            logger.warning(f"Results directory not found or invalid: {dir_path}")
+            return None
+
+        results_file = next((f for f in os.listdir(dir_path) if f.endswith('_results.json') or f == 'benchmark_results.json'), None)
         if not results_file:
             logger.warning(f"No results file found in {dir_path}")
-            return {}
+            return None
 
-        with open(os.path.join(dir_path, results_file), 'r') as f:
-            return json.load(f)
+        try:
+            with open(os.path.join(dir_path, results_file), 'r') as f:
+                return json.load(f)
+        except (IOError, json.JSONDecodeError) as e:
+            logger.error(f"Error loading results from {results_file}: {e}")
+            return None
 
-    def generate_summary_report(self) -> str:
-        """Generate markdown summary report."""
+    def generate_summary_report(self) -> Optional[str]:
+        """Generate a markdown summary report."""
         report = "# GenAI Security Benchmarking Report\n\n"
         report += f"Generated: {datetime.now().isoformat()}\n\n"
 
         for tool, data in self.results.items():
             report += f"## {tool.capitalize()} Metrics\n"
-            if not data:
-                report += "No data available\n"
+            if not data or 'metrics' not in data:
+                report += "No data available\n\n"
                 continue
 
-            metrics = data.get('metrics', {})
-            report += f"- Success Rate: {metrics.get('success_rate', 0):.2f}%\n"
-            report += f"- Coverage: {metrics.get('coverage', 0):.2f}%\n"
-            report += f"- Total Runtime: {metrics.get('runtime_total', 0):.2f}s\n"
-            report += f"- Detected Vulnerabilities: {json.dumps(metrics.get('vulnerabilities_detected', {}), indent=2)}\n\n"
+            metrics = data['metrics']
+            report += f"- **Success/Completion Rate**: {metrics.get('success_rate', metrics.get('block_rate', metrics.get('validation_rate', 0.0))):.2f}%\n"
+            report += f"- **Total Runtime**: {metrics.get('runtime_total', 0):.2f}s\n"
+            report += f"- **Average Runtime**: {metrics.get('runtime_avg', 0):.2f}s\n"
 
-        output_path = os.path.join(self.output_dir, 'summary_report.md')
-        with open(output_path, 'w') as f:
-            f.write(report)
+            if 'vulnerabilities_detected' in metrics:
+                report += f"- **Detected Vulnerabilities**: {json.dumps(metrics.get('vulnerabilities_detected', {}), indent=2)}\n\n"
+            if 'detected_issues' in metrics:
+                report += f"- **Detected Issues**: {json.dumps(metrics.get('detected_issues', {}), indent=2)}\n\n"
 
-        logger.info(f"Summary report saved to {output_path}")
-        return output_path
+        try:
+            output_path = os.path.join(self.output_dir, 'summary_report.md')
+            with open(output_path, 'w') as f:
+                f.write(report)
+            logger.info(f"Summary report saved to {output_path}")
+            return output_path
+        except IOError as e:
+            logger.error(f"Error saving summary report: {e}")
+            return None
 
     def generate_visualizations(self):
         """Generate metric visualizations."""
-        fig, ax = plt.subplots(figsize=(10, 6))
-
-        tools = [tool for tool, data in self.results.items() if data]
-        runtimes = [self.results[t].get('metrics', {}).get('runtime_total', 0) for t in tools]
-
-        if not runtimes:
-            logger.warning("No data available to generate runtime comparison chart.")
+        if not self.results:
+            logger.warning("No results to visualize.")
             return
 
-        ax.bar(tools, runtimes)
-        ax.set_title('Benchmark Runtime Comparison')
-        ax.set_ylabel('Seconds')
-        ax.set_xlabel('Tools')
+        # Runtime Comparison
+        try:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            tools = [k for k, v in self.results.items() if v]
+            runtimes = [self.results[t]['metrics'].get('runtime_total', 0) for t in tools]
 
-        path = os.path.join(self.output_dir, 'runtime_comparison.png')
-        plt.savefig(path)
-        plt.close()
+            ax.bar(tools, runtimes, color=['#1f77b4', '#ff7f0e', '#2ca02c'])
+            ax.set_title('Benchmark Runtime Comparison', fontsize=16)
+            ax.set_ylabel('Total Runtime (Seconds)', fontsize=12)
+            ax.set_xlabel('Benchmarking Tools', fontsize=12)
 
-        logger.info(f"Visualizations generated at {path}")
+            img_path = os.path.join(self.output_dir, 'runtime_comparison.png')
+            plt.savefig(img_path)
+            plt.close()
+            logger.info(f"Runtime comparison chart saved to {img_path}")
+        except Exception as e:
+            logger.error(f"Failed to generate runtime visualization: {e}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate benchmark reports.")
-    parser.add_argument(
-        '--results',
-        nargs=2,
-        action='append',
-        metavar=('TOOL_NAME', 'DIRECTORY_PATH'),
-        help='The tool name and the path to its results directory. Can be specified multiple times.'
-    )
-
+    parser.add_argument('results_dirs', type=str, help="A JSON string mapping tools to their results directories.")
+    parser.add_argument('--output-dir', type=str, help="Directory to save the report and visualizations.")
     args = parser.parse_args()
 
-    results_dirs = {tool: path for tool, path in args.results} if args.results else {}
+    try:
+        results_dirs_dict = json.loads(args.results_dirs)
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON string for results directories.")
+        sys.exit(1)
 
-    if not results_dirs:
-        logger.error("No result directories provided. Use the --results argument.")
-    else:
-        generator = ReportGenerator(results_dirs)
-        generator.generate_summary_report()
-        generator.generate_visualizations()
+    generator = ReportGenerator(results_dirs_dict, args.output_dir)
+    generator.generate_summary_report()
+    generator.generate_visualizations()
