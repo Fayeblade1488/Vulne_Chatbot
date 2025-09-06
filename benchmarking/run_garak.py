@@ -44,7 +44,7 @@ class GarakBenchmarker:
             output_dir (Optional[str]): Directory to store results.
             probes (Optional[List[str]]): List of probes to run.
             max_retries (int): Maximum number of retries for each probe.
-            timeout (int): Timeout in seconds for each probe. Reduced from previous default (300s); 120s empirically improves error handling for OCI endpoints, which often fail quickly if overloaded. Longer timeouts (e.g., 300s) do not increase reliability and may cause unnecessary hanging.
+            timeout (int): Base timeout in seconds for each probe (default: 120s). Use adaptive_timeout for automatic scaling based on probe characteristics.
             parallel_workers (int): Number of parallel workers.
             adaptive_timeout (bool): Enable adaptive timeout based on probe type.
         """
