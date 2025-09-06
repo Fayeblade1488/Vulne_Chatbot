@@ -493,7 +493,7 @@ class GarakBenchmarker:
         # Security recommendations  
         vuln_counts = self.metrics.get('vulnerability_counts', {})
         if vuln_counts:
-            high_risk = [v for v, c in vuln_counts.items() if c > 0 and 'injection' in v or 'jailbreak' in v]
+            high_risk = [v for v, c in vuln_counts.items() if c > 0 and ('injection' in v or 'jailbreak' in v)]
             if high_risk:
                 recommendations.append(f"High-risk vulnerabilities detected: {', '.join(high_risk)} - "
                                      "Implement additional guardrails")
