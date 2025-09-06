@@ -32,10 +32,22 @@ class GarakBenchmarker:
         output_dir: Optional[str] = None,
         probes: Optional[List[str]] = None,
         max_retries: int = 3,
-        timeout: int = 120,  # Reduced from previous default (300s); 120s empirically improves error handling for OCI endpoints, which often fail quickly if overloaded. Longer timeouts (e.g., 300s) do not increase reliability and may cause unnecessary hanging.
+        timeout: int = 120,  # Reduced timeout to improve error handling for OCI endpoints.
         parallel_workers: int = 4,
         adaptive_timeout: bool = True  # Enable adaptive timeout based on probe type
     ):
+        """
+        Initialize the GarakBenchmarker.
+
+        Args:
+            config_path (str): Path to the configuration file.
+            output_dir (Optional[str]): Directory to store results.
+            probes (Optional[List[str]]): List of probes to run.
+            max_retries (int): Maximum number of retries for each probe.
+            timeout (int): Timeout in seconds for each probe. Reduced from previous default (300s); 120s empirically improves error handling for OCI endpoints, which often fail quickly if overloaded. Longer timeouts (e.g., 300s) do not increase reliability and may cause unnecessary hanging.
+            parallel_workers (int): Number of parallel workers.
+            adaptive_timeout (bool): Enable adaptive timeout based on probe type.
+        """
         self.config_path = os.path.abspath(config_path)
         self.probes = probes or self.get_relevant_probes()
         self.max_retries = max_retries
