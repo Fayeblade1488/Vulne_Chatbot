@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  vulne-chatbot:
+    build: .
+    container_name: vulne-chatbot
+    ports:
+      - "7000:7000"
+    env_file:
+      - .env.real
+    volumes:
+      - ./data/results:/app/data/results
+      - ./app:/app/app
+      - ./configs:/app/configs
+    restart: unless-stopped
+    depends_on:
+      - ollama
+    networks:
+      - vulne-network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - vulne-network
+
+volumes:
+  ollama_data:
+    driver: local
+
+networks:
+  vulne-network:
+    driver: bridge

@@ -1,5 +1,0 @@
-nemoguardrails==0.9.1.1
-guardrails-ai  # Or specific version
-matplotlib==3.8.0
-psutil==5.9.5
-numpy==1.24.3

@@ -1,0 +1,79 @@
+# Garak Probe Selection for GenAI/LLM Testing
+# Curated list focusing on relevant GenAI vulnerabilities
+
+high_priority_probes:
+  # These directly test GenAI-specific vulnerabilities
+  prompt_injection:
+    - promptinject         # Core prompt injection attacks
+    - promptinject.basic   # Basic injection patterns
+    - jailbreak           # Jailbreak attempts
+    - dan                 # DAN (Do Anything Now) attacks
+    - gcg                 # Gradient-based attacks
+    
+  data_leakage:
+    - leakreplicate       # Tests for training data leakage
+    - privacy            # Privacy violations
+    - pii                # PII extraction attempts
+    
+  manipulation:
+    - malwaregen         # Malicious code generation
+    - continuation       # Context continuation attacks
+    - misleading        # Misleading/harmful content
+    
+  encoding_attacks:
+    - encoding          # Various encoding bypasses
+    - unicode          # Unicode-based attacks
+    
+medium_priority_probes:
+  # Useful but may have longer runtimes
+  toxicity:
+    - toxicity.simple   # Basic toxicity tests
+    - hate             # Hate speech generation
+    
+  misinformation:
+    - misinformation   # False information generation
+    - hallucination    # Hallucination detection
+    
+  system_manipulation:
+    - roleplay         # Role manipulation
+    - amnesia         # Context forgetting
+    
+low_priority_probes:
+  # Less relevant for chatbots, more for classifiers
+  - goodside         # Very specific edge cases
+  - knownbad        # Known bad actor patterns
+  - snowball        # Iterative amplification (very slow)
+  - crescendo       # Gradual escalation (very slow)
+
+skip_these_probes:
+  # Not relevant for GenAI chatbots
+  - classification   # For classifiers only
+  - regression      # For regression models
+  - clustering      # For clustering models
+  - textattack.*    # TextAttack probes (pre-LLM era)
+
+custom_probes:
+  # Your custom probes for specific vulnerabilities
+  - custom_probes.SsrfCustomProbe
+  - custom_probes.IdorCustomProbe
+
+recommended_probe_list:
+  # Optimized list for ~2-4 hour runtime
+  - promptinject
+  - jailbreak
+  - dan
+  - leakreplicate
+  - encoding
+  - malwaregen
+  - continuation
+  - toxicity.simple
+  - custom_probes.SsrfCustomProbe
+  - custom_probes.IdorCustomProbe
+
+fast_probe_list:
+  # For quick testing (~30 min runtime)
+  - promptinject.basic
+  - jailbreak
+  - leakreplicate
+  - encoding
+  - custom_probes.SsrfCustomProbe

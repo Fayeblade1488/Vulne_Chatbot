@@ -20,9 +20,10 @@ RUN pip install -e benchmarking/
 EXPOSE 7000
 
 # Define environment variables
-ENV FLASK_APP=vulne_chat.py
+ENV FLASK_APP=app/vulne_chat.py
 ENV FLASK_RUN_HOST=0.0.0.0
 ENV GUARDRAILS_MODE=none
+ENV PYTHONPATH=/app
 
 # Run vulne_chat.py when the container launches
-CMD ["flask", "run", "--port", "7000"]
+CMD ["python", "app/vulne_chat.py"]
