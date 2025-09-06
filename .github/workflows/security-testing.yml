@@ -6,8 +6,7 @@ on:
   pull_request:
     branches: [ main ]
   schedule:
-    # Run daily security scan at 2 AM UTC
-    - cron: '0 2 * * *'
+    - cron: '0 2 * * *' # Run daily security scan at 2 AM UTC
   workflow_dispatch:
     inputs:
       test_level:
@@ -34,32 +33,38 @@ jobs:
       cache-key: ${{ steps.cache-keys.outputs.key }}
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Generate cache keys
         id: cache-keys
         run: |
           echo "key=deps-${{ hashFiles('**/requirements.txt', '**/package-lock.json') }}" >> $GITHUB_OUTPUT
-      
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-      
+
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
-      
+
+      - name: Ensure cache directories exist
+        run: |
+          mkdir -p ~/.cache/pip
+          mkdir -p ~/.npm
+          mkdir -p frontend/node_modules
+
       - name: Cache dependencies
         uses: actions/cache@v3
         with:
           path: |
             ~/.cache/pip
-            ~/node_modules
             ~/.npm
+            frontend/node_modules
           key: ${{ steps.cache-keys.outputs.key }}
 
   lint-and-format:
@@ -68,23 +73,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Install linting tools
         run: |
           pip install flake8 black mypy isort pylint
-      
+
       - name: Run Python linters
         run: |
           flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
           black --check app/ benchmarking/ scripts/
           isort --check-only app/ benchmarking/ scripts/
           mypy app/ benchmarking/ scripts/ --ignore-missing-imports || true
-      
+
       - name: Run frontend linters
         working-directory: frontend
         run: |
@@ -99,33 +104,33 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Install security tools
         run: |
           pip install bandit safety semgrep pip-audit
-      
+
       - name: Run Bandit security scan
         run: |
           bandit -r app/ benchmarking/ scripts/ -f json -o bandit-report.json || true
-      
+
       - name: Run Safety check
         run: |
           safety check --json > safety-report.json || true
-      
+
       - name: Run pip-audit
         run: |
           pip-audit --desc --format json > pip-audit-report.json || true
-      
+
       - name: Run Semgrep
         uses: returntocorp/semgrep-action@v1
         with:
           config: auto
-      
+
       - name: Upload security reports
         uses: actions/upload-artifact@v3
         with:
@@ -133,7 +138,7 @@ jobs:
           path: |
             *-report.json
           retention-days: ${{ env.RESULTS_RETENTION_DAYS }}
-      
+
       - name: Check for critical vulnerabilities
         run: |
           python -c "
@@ -177,22 +182,22 @@ jobs:
         python-version: ['3.9', '3.10', '3.11']
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-      
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install pytest pytest-cov pytest-asyncio pytest-mock
-      
+
       - name: Run unit tests
         run: |
           pytest tests/unit/ -v --cov=app --cov=benchmarking \
             --cov-report=xml --cov-report=html --cov-report=term
-      
+
       - name: Upload coverage reports
         uses: codecov/codecov-action@v3
         with:
@@ -222,31 +227,31 @@ jobs:
           - 5432:5432
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install -e benchmarking/
-      
+
       - name: Setup Ollama (for model testing)
         run: |
           curl -fsSL https://ollama.ai/install.sh | sh
           ollama serve &
           sleep 5
           ollama pull mistral:latest
-      
+
       - name: Run integration tests
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
           REDIS_URL: redis://localhost:6379
         run: |
           pytest tests/integration/ -v --tb=short
-      
+
       - name: Test vulnerable endpoints
         run: |
           python app/vulne_chat.py &
@@ -270,17 +275,17 @@ jobs:
     if: github.event_name == 'schedule' || github.event.inputs.test_level == 'comprehensive' || github.event.inputs.test_level == 'paranoid'
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           pip install -e benchmarking/
-      
+
       - name: Setup Ollama
         run: |
           curl -fsSL https://ollama.ai/install.sh | sh
@@ -288,39 +293,39 @@ jobs:
           sleep 5
           ollama pull mistral:latest
           ollama pull llama2:latest
-      
+
       - name: Start vulnerable app
         run: |
           python app/vulne_chat.py &
           sleep 10
-      
+
       - name: Run Garak benchmarks
         run: |
           python benchmarking/run_garak.py \
             --target-url http://localhost:7000/chat \
             --model mistral:latest \
             --output-dir results/garak
-      
+
       - name: Run NeMo benchmarks
         run: |
           python benchmarking/run_nemo.py \
             --target-url http://localhost:7000/chat \
             --model mistral:latest \
             --output-dir results/nemo
-      
+
       - name: Run GuardrailsAI benchmarks
         run: |
           python benchmarking/run_guardrailsai.py \
             --target-url http://localhost:7000/chat \
             --model mistral:latest \
             --output-dir results/guardrailsai
-      
+
       - name: Generate consolidated report
         run: |
           python benchmarking/report_generator.py \
             --input-dir results \
             --output-file benchmark-report.html
-      
+
       - name: Upload benchmark results
         uses: actions/upload-artifact@v3
         with:
@@ -337,27 +342,27 @@ jobs:
     if: github.event.inputs.test_level == 'paranoid' || github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-      
+
       - name: Generate AI-powered probes
         run: |
           python scripts/ai_probe_generator.py
-      
+
       - name: Run custom vulnerability tests
         run: |
           python scripts/vulnerability_tester.py \
             --probes generated_probes.json \
             --target http://localhost:7000 \
             --output vuln-test-results.json
-      
+
       - name: Upload vulnerability results
         uses: actions/upload-artifact@v3
         with:
@@ -373,10 +378,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-      
+
       - name: Build Docker image
         uses: docker/build-push-action@v4
         with:
@@ -386,14 +391,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           outputs: type=docker,dest=/tmp/image.tar
-      
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
           input: /tmp/image.tar
           format: 'sarif'
           output: 'trivy-results.sarif'
-      
+
       - name: Upload Trivy results to GitHub Security
         uses: github/codeql-action/upload-sarif@v2
         with:
@@ -415,7 +420,7 @@ jobs:
           else
             echo "status=success" >> $GITHUB_OUTPUT
           fi
-      
+
       - name: Send Slack notification
         if: env.SLACK_WEBHOOK_URL != ''
         env:
